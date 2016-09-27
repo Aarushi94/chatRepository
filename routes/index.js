@@ -1,29 +1,13 @@
 var express = require('express');
 var router = express.Router();
-var user=require('../models/user');
+var user=require('../models/userSchema');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
 //  res.render('index', { title: 'Socket Chat I/o' });
   res.render('dummy');
 });
-/*
-router.get('/login',function(req,res){
-  res.render('login');
-});
-router.post('/login',function(req,res){
-  user.findOne({ 'email': req.body.email },'name', function (err, person) {
-    if (err) {
-     console.log("No user exists");
-      res.redirect('/register');
-    }else{
-      console.log('User Exists:'+person.name );
-      res.redirect('/');
-    }
 
-  });
-});
-*/
 router.get('/register',function(req,res){
   res.render('register');
 });

@@ -18,7 +18,7 @@ $(document).ready(function(){
 
 
   //Get all Online People
-  socket.on('people-online', function(people){
+  socket.on('users-online', function(people){
 
     var list=$("<ol/>");
     $.each(people,function(id,name){
@@ -31,15 +31,13 @@ $(document).ready(function(){
 
   //Send Request to particular user
   $(document).on('click','.online',function(){
-    console.log("Li  click");
     var personId=this.id;
-    console.log("Id:"+personId);
     socket.emit('request-chat',personId);
   });
 
   //Show request of the sender
   socket.on('request-chat',function(name,senderId){
-    console.log(name+" requested to chat");
+
     var yes="<button id='"+senderId+"' class='btn btn-primary yes'>Yes</button>"
     var no="<button id='"+senderId+"' class='btn btn-primary no'>No</button>"
     $('#request').empty();
@@ -52,12 +50,11 @@ $(document).ready(function(){
 
   //Accept request of the sender
  $(document).on('click','.yes',function(){
-   console.log("Yes is pressed");
+
    var receiverId=this.id;
-   console.log("Yes button:"+receiverId);
    var tempId=receiverId.replace("#","");
    tempId=tempId.replace("/","");
-   console.log("Temperary id:"+tempId);
+
    //Show message div
    var div=$("<div/>");
    var form="<form action=''  id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
@@ -75,8 +72,7 @@ $(document).ready(function(){
 
  //Reject request of the sender
  $(document).on('click','.no',function(){
-  console.log("Rejected button click");
-  var receiverId=this.id;
+   var receiverId=this.id;
    socket.emit('request-chat-rejected',receiverId);
    $('#request').hide();
  });
@@ -88,7 +84,6 @@ socket.on('request-chat-rejected',function(name){
 
 //Show chat message div on accepting request
 socket.on('request-chat-accepted',function(receiverId){
-  console.log("Request chat accepted");
   var tempId=receiverId.replace("#","");
   tempId=tempId.replace("/","");
   var div=$("<div/>")
@@ -111,10 +106,10 @@ $(document).on('click','.sendMessageButton',function(){
   var receiverId=this.id;
   var tempId=receiverId.replace("#","");
   tempId=tempId.replace("/","");
-  console.log("sendMessageButton clicked:"+receiverId);
+
   socket.emit('chat-message', $('#m'+tempId).val(),receiverId);
   $('#m'+tempId).val('');
-});
+ });
 
 //On sending message append message to self box
 socket.on('chat-message-self', function(name,msg,receiverId){
@@ -122,7 +117,7 @@ socket.on('chat-message-self', function(name,msg,receiverId){
   tempId=tempId.replace("/","");
   $('#messages'+tempId).append($('<li>').text(name+": "+msg));
 
-});
+ });
 
 //On receiving message append message to the person's chat box
 socket.on('chat-message-receiver', function(name,msg,receiverId){
@@ -130,14 +125,5 @@ socket.on('chat-message-receiver', function(name,msg,receiverId){
   tempId=tempId.replace("/","");
   $('#messages'+tempId).append($('<li>').text(name+": "+msg));
 
-});
-/*
-$('.messageForm').submit(function(){
-  socket.emit('chat message', $('#m').val());
-
-  return false;
-});
-socket.on('chat message', function(name,msg){
-  $('#messages').append($('<li>').text(name+": "+msg));
-});*/
+ });
 });

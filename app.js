@@ -8,7 +8,7 @@ var mongoose=require('mongoose');
 
 
 //Mongo db Connection
-mongoose.connect('mongodb://localhost/chat');
+mongoose.connect('mongodb://localhost/chatApplication');
 var db=mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function() {
@@ -18,7 +18,8 @@ db.once('open', function() {
 //These are seggregation of API's
 var routes = require('./routes/index');
 var users = require('./routes/users');
-var peopleChat=require('./models/user');
+var userCheck=require('./models/userSchema');
+var userChatHistory=require('./models/chatSchema')
 
 var app = express();
 var server=require('http').Server(app);
@@ -26,69 +27,92 @@ var server=require('http').Server(app);
 
 // Socket Connection
 var io=require('socket.io')(server);
-var people={};
-var peopleSockets={};
+var usersOnline={};
+var usersOnlineSockets={};
 
 io.on('connection',function(socket){
   //Check user exists or not
   socket.on('login-check',function(email,pwd){
-    peopleChat.findOne({ 'email': email },'name', function (err, person) {
+    userCheck.findOne({ 'email': email },'name', function (err, user) {
       if (err) {
         console.log("No user exists");
       }else{
-        //console.log('User Exists:'+person.name );
-        people[socket.id]=person.name;
-        peopleSockets[socket.id]=socket;
-        socket.emit('welcome',person.name);
-        io.emit('people-online',people);
+        //Store socket-id in usersOnline object
+        usersOnline[socket.id]=user.name;
+        //Store socket in usersOnlineSockets object
+        usersOnlineSockets[socket.id]=socket;
+        socket.emit('welcome',user.name);
+        io.emit('users-online',usersOnline);
       }
 
     });
   });
   //Request the person for chat
   socket.on('request-chat',function(id){
-    peopleSockets[id].emit("request-chat",people[socket.id],socket.id);
+    usersOnlineSockets[id].emit("request-chat",usersOnline[socket.id],socket.id);
   });
-  
+
   //Accept the chat request
   socket.on('request-chat-accepted',function(id){
-    peopleSockets[id].emit("request-chat-accepted",socket.id);
+
+    var newChat;
+    //Find if any history exits between the two people
+    userChatHistory.findOne({
+      chatId:{
+        $in:[usersOnline[socket.id] + '-' + usersOnline[id], usersOnline[id] + '-' + usersOnline[socket.id]]
+      }},function(err,previousChatHistory){
+        if(previousChatHistory){
+          console.log("chatId already exists");
+        }else{
+          //Create new chat document
+            newChat=new userChatHistory({
+            chatId:usersOnline[socket.id] + '-' + usersOnline[id],
+            user1:usersOnline[socket.id],
+            user2:usersOnline[id]
+          });
+          newChat.save(function(error,data){
+            console.log("Chat document created");
+          });
+        }
+      }
+    )
+    usersOnlineSockets[id].emit("request-chat-accepted",socket.id);
   });
   //Rejected chat request
   socket.on('request-chat-rejected',function(id){
-    peopleSockets[id].emit("request-chat-rejected",people[socket.id]);
+    usersOnlineSockets[id].emit("request-chat-rejected",usersOnline[socket.id]);
   });
-  /*  socket.on('join',function(name){
-  //Give each people a Socket ID
-  people[socket.id]=name;
-  //Total people in Chat
-  io.emit('totalPeople',people,socket.id);
 
-  //Total history till now
-  peopleChat.find(function(err,history){
-  if (err) return console.error(err);
-  console.log(history);
-});
-});*/
-//
 socket.on('chat-message', function(msg,senderId){
-  //save the message in database
-  //  var p=new peopleChat({name:people[socket.id],message:msg});
-  //  p.save(function (err, p) {
-  //      if (err) return console.error(err);
-  //    });
+
+          //Find the previous chat document
+           userChatHistory.findOne({
+             chatId:{
+               $in:[usersOnline[socket.id] + '-' + usersOnline[senderId], usersOnline[senderId] + '-' + usersOnline[socket.id]]
+            }
+           }, function(error, chat) {
+               chat.chatHistory.push({
+                   sender: usersOnline[socket.id],
+                   message: msg
+               });
+
+               //Save the chat in database
+               chat.save(function() {
+                   console.log('chat updated');
+               });
+           });
 
   //Emit that message to the receiver
-  peopleSockets[senderId].emit('chat-message-receiver',people[socket.id], msg,socket.id);
+  usersOnlineSockets[senderId].emit('chat-message-receiver',usersOnline[socket.id], msg,socket.id);
   //Emit the message to self
-  socket.emit('chat-message-self',people[socket.id],msg,senderId);
+  socket.emit('chat-message-self',usersOnline[socket.id],msg,senderId);
 });
 socket.on('disconnect', function(){
   //delete Id
-  delete people[socket.id];
-  delete peopleSockets[socket.id];
+  delete usersOnline[socket.id];
+  delete usersOnlineSockets[socket.id];
   // Show all people online
-  io.emit('people-online',people);
+  io.emit('users-online',usersOnline);
 });
 });
 

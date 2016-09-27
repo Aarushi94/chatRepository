@@ -5,6 +5,6 @@ var chatSchema=new Schema({
   password:String,
   email:String,
   phone:String,
-  message:String
+
 });
-module.exports=mongoose.model('Chat',chatSchema);
+module.exports=mongoose.model('users',chatSchema);
