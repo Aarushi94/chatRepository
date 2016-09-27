@@ -24,59 +24,75 @@ var app = express();
 var server=require('http').Server(app);
 
 
-
 // Socket Connection
 var io=require('socket.io')(server);
 var people={};
+var peopleSockets={};
 
 io.on('connection',function(socket){
-  socket.on('loginCheck',function(email,pwd){
-    peopleChat.findOne({ 'email': email },'email', function (err, person) {
+  //Check user exists or not
+  socket.on('login-check',function(email,pwd){
+    peopleChat.findOne({ 'email': email },'name', function (err, person) {
       if (err) {
-       console.log("No user exists");
-       console.log("Email"+email);
-        //res.redirect('/login');
+        console.log("No user exists");
       }else{
-        console.log('User Exists:'+person.email );
-        console.log("Email"+email);
-        //res.redirect('/');
+        //console.log('User Exists:'+person.name );
+        people[socket.id]=person.name;
+        peopleSockets[socket.id]=socket;
+        socket.emit('welcome',person.name);
+        io.emit('people-online',people);
       }
 
     });
   });
-  socket.on('join',function(name){
-    //Give each people a Socket ID
-    people[socket.id]=name;
-    //Total people in Chat
-    io.emit('totalPeople',people);
+  //Request the person for chat
+  socket.on('request-chat',function(id){
+    peopleSockets[id].emit("request-chat",people[socket.id],socket.id);
+  });
+  
+  //Accept the chat request
+  socket.on('request-chat-accepted',function(id){
+    peopleSockets[id].emit("request-chat-accepted",socket.id);
+  });
+  //Rejected chat request
+  socket.on('request-chat-rejected',function(id){
+    peopleSockets[id].emit("request-chat-rejected",people[socket.id]);
+  });
+  /*  socket.on('join',function(name){
+  //Give each people a Socket ID
+  people[socket.id]=name;
+  //Total people in Chat
+  io.emit('totalPeople',people,socket.id);
 
-    //Total history till now
-    peopleChat.find(function(err,history){
-      if (err) return console.error(err);
-      console.log(history);
-    });
-  });
-  socket.on('chat message', function(msg){
-    //save the message in database
-    var p=new peopleChat({name:people[socket.id],message:msg});
-    p.save(function (err, p) {
-        if (err) return console.error(err);
-      });
-      //Emit that message to all people
-     io.emit('chat message',people[socket.id], msg);
-  });
-  socket.on('disconnect', function(){
-    //delete Id from people object
-    delete people[socket.id];
-    // Show all people in chat
-    io.emit('totalPeople',people);
-  });
+  //Total history till now
+  peopleChat.find(function(err,history){
+  if (err) return console.error(err);
+  console.log(history);
+});
+});*/
+//
+socket.on('chat-message', function(msg,senderId){
+  //save the message in database
+  //  var p=new peopleChat({name:people[socket.id],message:msg});
+  //  p.save(function (err, p) {
+  //      if (err) return console.error(err);
+  //    });
+
+  //Emit that message to the receiver
+  peopleSockets[senderId].emit('chat-message-receiver',people[socket.id], msg,socket.id);
+  //Emit the message to self
+  socket.emit('chat-message-self',people[socket.id],msg,senderId);
+});
+socket.on('disconnect', function(){
+  //delete Id
+  delete people[socket.id];
+  delete peopleSockets[socket.id];
+  // Show all people online
+  io.emit('people-online',people);
+});
 });
 
 
-// view engine setup
-//app.set('views', path.join(__dirname, 'views'));
-//app.set('view engine', 'jade');
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
@@ -95,22 +111,6 @@ app.use('/users', users);
 app.get('/login',function(req,res){
   res.render('index');
 });
-
-/*
-app.post('/login',function(req,res){
-  socket.on('loginCheck',)
-  user.findOne({ 'email': req.body.email },'name', function (err, person) {
-    if (err) {
-     console.log("No user exists");
-      res.redirect('/login');
-    }else{
-      console.log('User Exists:'+person.name );
-      res.redirect('/');
-    }
-
-  });
-});*/
-
 
 
 // catch 404 and forward to error handler
