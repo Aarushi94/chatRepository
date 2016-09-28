@@ -58,7 +58,7 @@ $(document).ready(function(){
    //Show message div
    var div=$("<div/>");
    var form="<form action=''  id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
-   "<button id='"+receiverId+"' class='sendMessageButton'>Send</button>"
+   "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
 
    var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
    div.append(form);
@@ -88,7 +88,7 @@ socket.on('request-chat-accepted',function(receiverId){
   tempId=tempId.replace("/","");
   var div=$("<div/>")
   var form="<form action='' id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
-  "<button id='"+receiverId+"' class='sendMessageButton'>Send</button>"
+  "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
   var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
   div.append(form);
   div.append(li);
@@ -126,4 +126,32 @@ socket.on('chat-message-receiver', function(name,msg,receiverId){
   $('#messages'+tempId).append($('<li>').text(name+": "+msg));
 
  });
+});
+//File upload event change
+$(document).on('change','.fileChoose',function(e){
+  var receiverId=this.id;
+  var file = e.target.files[0];
+  var stream = ss.createStream();
+
+  //Upload a file to the server.
+  ss(socket).emit('file', stream, {name:file.name,size: file.size,id:receiverId});
+  var blobStream=ss.createBlobReadStream(file);
+  var size=0;
+  blobStream.on('data',function(chunk){
+    size += chunk.length;
+    console.log(Math.floor(size / file.size * 100) + '%');
+  });
+  blobStream.pipe(stream);
+
+  socket.emit('file-download',file.name,receiverId);
+
+});
+
+// Receive File
+socket.on('file-download',function(name,fileName,receiverId){
+  var a="<a href='/uploads/"+fileName+"'target='_blank'><img src='/images/download-image.png' width='30'>"+fileName+"</a>"
+  var tempId=receiverId.replace("#","");
+  tempId=tempId.replace("/","");
+  $('#messages'+tempId).append($('<li>').html(name+": "+a));
+
 });

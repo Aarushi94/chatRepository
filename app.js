@@ -5,8 +5,9 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mongoose=require('mongoose');
-
-
+var ss = require('socket.io-stream');
+var path = require('path');
+var fs=require('fs');
 //Mongo db Connection
 mongoose.connect('mongodb://localhost/chatApplication');
 var db=mongoose.connection;
@@ -65,7 +66,7 @@ io.on('connection',function(socket){
           console.log("chatId already exists");
         }else{
           //Create new chat document
-            newChat=new userChatHistory({
+          newChat=new userChatHistory({
             chatId:usersOnline[socket.id] + '-' + usersOnline[id],
             user1:usersOnline[socket.id],
             user2:usersOnline[id]
@@ -78,42 +79,58 @@ io.on('connection',function(socket){
     )
     usersOnlineSockets[id].emit("request-chat-accepted",socket.id);
   });
+
   //Rejected chat request
   socket.on('request-chat-rejected',function(id){
     usersOnlineSockets[id].emit("request-chat-rejected",usersOnline[socket.id]);
   });
 
-socket.on('chat-message', function(msg,senderId){
+  //Receiving chat message event
+  socket.on('chat-message', function(msg,senderId){
+    //Find the previous chat document
+    userChatHistory.findOne({
+      chatId:{
+        $in:[usersOnline[socket.id] + '-' + usersOnline[senderId], usersOnline[senderId] + '-' + usersOnline[socket.id]]
+      }
+    }, function(error, chat) {
+       chat.chatHistory.push({
+        sender: usersOnline[socket.id],
+        message: msg
+      });
 
-          //Find the previous chat document
-           userChatHistory.findOne({
-             chatId:{
-               $in:[usersOnline[socket.id] + '-' + usersOnline[senderId], usersOnline[senderId] + '-' + usersOnline[socket.id]]
-            }
-           }, function(error, chat) {
-               chat.chatHistory.push({
-                   sender: usersOnline[socket.id],
-                   message: msg
-               });
+      //Save the chat in database
+      chat.save(function() {
+        console.log('chat updated');
+      });
+    });
 
-               //Save the chat in database
-               chat.save(function() {
-                   console.log('chat updated');
-               });
-           });
+    //Emit that message to the receiver
+    usersOnlineSockets[senderId].emit('chat-message-receiver',usersOnline[socket.id], msg,socket.id);
+    //Emit the message to self
+    socket.emit('chat-message-self',usersOnline[socket.id],msg,senderId);
+  });
 
-  //Emit that message to the receiver
-  usersOnlineSockets[senderId].emit('chat-message-receiver',usersOnline[socket.id], msg,socket.id);
-  //Emit the message to self
-  socket.emit('chat-message-self',usersOnline[socket.id],msg,senderId);
-});
-socket.on('disconnect', function(){
-  //delete Id
-  delete usersOnline[socket.id];
-  delete usersOnlineSockets[socket.id];
-  // Show all people online
-  io.emit('users-online',usersOnline);
-});
+  //On disconnect event
+  socket.on('disconnect', function(){
+    //delete Id
+    delete usersOnline[socket.id];
+    delete usersOnlineSockets[socket.id];
+    // Show all people online
+    io.emit('users-online',usersOnline);
+  });
+
+ //Upload file in server
+  ss(socket).on('file', function(stream,data) {
+   var fileName = path.basename(data.name);
+   //Get File extension
+   var ext=path.extname(fileName);
+   fileName=usersOnline[socket.id]+"-"+(Date.now())+ext;
+   //save File in server uploads folder
+   stream.pipe(fs.createWriteStream('public/uploads/'+fileName));
+   //Generate an event to receiver
+   usersOnlineSockets[(data.id)].emit('file-download',usersOnline[socket.id],fileName,socket.id);
+  });
+
 });
 
 
