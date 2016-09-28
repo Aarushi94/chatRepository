@@ -8,6 +8,9 @@ var mongoose=require('mongoose');
 var ss = require('socket.io-stream');
 var path = require('path');
 var fs=require('fs');
+var passport = require("passport");
+var passportJWT = require("passport-jwt");
+
 //Mongo db Connection
 mongoose.connect('mongodb://localhost/chatApplication');
 var db=mongoose.connection;
@@ -19,11 +22,32 @@ db.once('open', function() {
 //These are seggregation of API's
 var routes = require('./routes/index');
 var users = require('./routes/users');
+var login=require('./routes/login');
 var userCheck=require('./models/userSchema');
 var userChatHistory=require('./models/chatSchema')
 
 var app = express();
 var server=require('http').Server(app);
+
+//JWt Strategy used by passport
+var JwtStrategy = passportJWT.Strategy,
+ExtractJwt = passportJWT.ExtractJwt;
+var opts = {}
+opts.jwtFromRequest = ExtractJwt.fromAuthHeader();
+//Secret Key
+opts.secretOrKey = 'Aarushi';
+passport.use(new JwtStrategy(opts, function(jwtPayload, done) {
+  userCheck.findOne({name: jwtPayload.name}, function(err, user) {
+    if (err) {
+      return done(err, false);
+    }
+    if (user) {
+      done(null, user);
+    } else {
+      done(null, false);
+    }
+  });
+}));
 
 
 // Socket Connection
@@ -33,10 +57,11 @@ var usersOnlineSockets={};
 
 io.on('connection',function(socket){
   //Check user exists or not
-  socket.on('login-check',function(email,pwd){
-    userCheck.findOne({ 'email': email },'name', function (err, user) {
-      if (err) {
+  socket.on('login-check',function(userName,pwd){
+    userCheck.findOne({ 'name': userName,'password':pwd },'name', function (err, user) {
+      if (err||user==null) {
         console.log("No user exists");
+        socket.emit('login-check',"Either userName or password is wrong.");
       }else{
         //Store socket-id in usersOnline object
         usersOnline[socket.id]=user.name;
@@ -71,6 +96,7 @@ io.on('connection',function(socket){
             user1:usersOnline[socket.id],
             user2:usersOnline[id]
           });
+          //Save the chat in database
           newChat.save(function(error,data){
             console.log("Chat document created");
           });
@@ -93,7 +119,7 @@ io.on('connection',function(socket){
         $in:[usersOnline[socket.id] + '-' + usersOnline[senderId], usersOnline[senderId] + '-' + usersOnline[socket.id]]
       }
     }, function(error, chat) {
-       chat.chatHistory.push({
+      chat.chatHistory.push({
         sender: usersOnline[socket.id],
         message: msg
       });
@@ -119,16 +145,16 @@ io.on('connection',function(socket){
     io.emit('users-online',usersOnline);
   });
 
- //Upload file in server
+  //Upload file in server
   ss(socket).on('file', function(stream,data) {
-   var fileName = path.basename(data.name);
-   //Get File extension
-   var ext=path.extname(fileName);
-   fileName=usersOnline[socket.id]+"-"+(Date.now())+ext;
-   //save File in server uploads folder
-   stream.pipe(fs.createWriteStream('public/uploads/'+fileName));
-   //Generate an event to receiver
-   usersOnlineSockets[(data.id)].emit('file-download',usersOnline[socket.id],fileName,socket.id);
+    var fileName = path.basename(data.name);
+    //Get File extension
+    var ext=path.extname(fileName);
+    fileName=usersOnline[socket.id]+"-"+(Date.now())+ext;
+    //save File in server uploads folder
+    stream.pipe(fs.createWriteStream('public/uploads/'+fileName));
+    //Generate an event to receiver
+    usersOnlineSockets[(data.id)].emit('file-download',usersOnline[socket.id],fileName,socket.id);
   });
 
 });
@@ -148,10 +174,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
 app.use('/users', users);
-
+app.use('/loginjwt',login);
 app.get('/login',function(req,res){
   res.render('index');
 });
+
 
 
 // catch 404 and forward to error handler

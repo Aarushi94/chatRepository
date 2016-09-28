@@ -1,17 +1,18 @@
 var express = require('express');
 var router = express.Router();
+var passport=require('passport');
 
-/* GET users listing. */
-router.get('/',function(req, res, next) {
+//Authenticate the urls
+router.get('/', passport.authenticate('jwt', { session: false}),
+function(req, res, next) {
   res.send('respond with a resource');
+}
+);
 
-  // res.send('welcome, ' + req.body.Name);
-   res.send("Received the request");
 
-
-});
-router.get('/hello',function(req,res,next){
-  res.send("Hello");
-
-});
+router.get('/hello',passport.authenticate('jwt', { session: false}),
+function(req, res, next) {
+  res.send('Hello users');
+}
+);
 module.exports = router;

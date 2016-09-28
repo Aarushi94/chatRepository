@@ -7,12 +7,18 @@ $(document).ready(function(){
 
   //On login click generate socket
   $('#login').click(function(){
-    socket.emit('login-check',$('#email').val(),$('#pwd').val());
+    console.log($('#userName').val()+":"+$('#pwd').val());
+    socket.emit('login-check',$('#userName').val(),$('#pwd').val());
     return false;
   });
 
+  //On wrong login
+  socket.on('login-check',function(msg){
+    $('#wrongCredentials').text(msg);
+  });
   //Welcome User with name
   socket.on('welcome',function(name){
+    $('#myModal').modal('hide');
     $('#welcome').append($('<p>').text("Welcome "+name+"!"));
   });
 
@@ -49,84 +55,85 @@ $(document).ready(function(){
   });
 
   //Accept request of the sender
- $(document).on('click','.yes',function(){
+  $(document).on('click','.yes',function(){
 
-   var receiverId=this.id;
-   var tempId=receiverId.replace("#","");
-   tempId=tempId.replace("/","");
+    var receiverId=this.id;
+    var tempId=receiverId.replace("#","");
+    tempId=tempId.replace("/","");
 
-   //Show message div
-   var div=$("<div/>");
-   var form="<form action=''  id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
-   "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
+    //Show message div
+    var div=$("<div/>");
+    var form="<form action=''  id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
+    "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
 
-   var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
-   div.append(form);
-   div.append(li);
-   $('#messageChatDiv').append(div);
+    var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
+    div.append(form);
+    div.append(li);
+    $('#messageChatDiv').append(div);
 
-   //Emit socket event to show messsage div at sender side
-   socket.emit('request-chat-accepted',receiverId);
-  $('#request').hide();
- });
+    //Emit socket event to show messsage div at sender side
+    socket.emit('request-chat-accepted',receiverId);
+    $('#request').hide();
+  });
 
- //Reject request of the sender
- $(document).on('click','.no',function(){
-   var receiverId=this.id;
-   socket.emit('request-chat-rejected',receiverId);
-   $('#request').hide();
- });
+  //Reject request of the sender
+  $(document).on('click','.no',function(){
+    var receiverId=this.id;
+    socket.emit('request-chat-rejected',receiverId);
+    $('#request').hide();
+  });
 
-//Show rejected div
-socket.on('request-chat-rejected',function(name){
-  $('#rejectDiv').append($('<p>').text(name+" rejected your request."))
+  //Show rejected div
+  socket.on('request-chat-rejected',function(name){
+    $('#rejectDiv').append($('<p>').text(name+" rejected your request."))
+  });
+
+  //Show chat message div on accepting request
+  socket.on('request-chat-accepted',function(receiverId){
+    var tempId=receiverId.replace("#","");
+    tempId=tempId.replace("/","");
+    var div=$("<div/>")
+    var form="<form action='' id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
+    "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
+    var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
+    div.append(form);
+    div.append(li);
+    $('#messageChatDiv').append(div);
+
+  });
+
+  //return false so thta page is not reloaded
+  $('#messageChatDiv').on('submit','#messageForm',function(){
+    return false;
+  });
+
+  //On click of send button, send message and Id to the server
+  $(document).on('click','.sendMessageButton',function(){
+    var receiverId=this.id;
+    var tempId=receiverId.replace("#","");
+    tempId=tempId.replace("/","");
+
+    socket.emit('chat-message', $('#m'+tempId).val(),receiverId);
+    $('#m'+tempId).val('');
+  });
+
+  //On sending message append message to self box
+  socket.on('chat-message-self', function(name,msg,receiverId){
+    var tempId=receiverId.replace("#","");
+    tempId=tempId.replace("/","");
+    $('#messages'+tempId).append($('<li>').text(name+": "+msg));
+
+  });
+
+  //On receiving message append message to the person's chat box
+  socket.on('chat-message-receiver', function(name,msg,receiverId){
+    var tempId=receiverId.replace("#","");
+    tempId=tempId.replace("/","");
+    $('#messages'+tempId).append($('<li>').text(name+": "+msg));
+
+  });
 });
 
-//Show chat message div on accepting request
-socket.on('request-chat-accepted',function(receiverId){
-  var tempId=receiverId.replace("#","");
-  tempId=tempId.replace("/","");
-  var div=$("<div/>")
-  var form="<form action='' id='messageForm'><input id='m"+tempId+"' autocomplete='off' />"+
-  "<button id='"+receiverId+"' class='sendMessageButton'>Send</button><input id='"+receiverId+"' class='fileChoose' type='file'/>"
-  var li="<ul id='messages"+tempId+"'class='messagesClass'></ul>"
-  div.append(form);
-  div.append(li);
-  $('#messageChatDiv').append(div);
-
-});
-
-//return false so thta page is not reloaded
-$('#messageChatDiv').on('submit','#messageForm',function(){
-  return false;
-});
-
-//On click of send button, send message and Id to the server
-$(document).on('click','.sendMessageButton',function(){
-  var receiverId=this.id;
-  var tempId=receiverId.replace("#","");
-  tempId=tempId.replace("/","");
-
-  socket.emit('chat-message', $('#m'+tempId).val(),receiverId);
-  $('#m'+tempId).val('');
- });
-
-//On sending message append message to self box
-socket.on('chat-message-self', function(name,msg,receiverId){
-  var tempId=receiverId.replace("#","");
-  tempId=tempId.replace("/","");
-  $('#messages'+tempId).append($('<li>').text(name+": "+msg));
-
- });
-
-//On receiving message append message to the person's chat box
-socket.on('chat-message-receiver', function(name,msg,receiverId){
-  var tempId=receiverId.replace("#","");
-  tempId=tempId.replace("/","");
-  $('#messages'+tempId).append($('<li>').text(name+": "+msg));
-
- });
-});
 //File upload event change
 $(document).on('change','.fileChoose',function(e){
   var receiverId=this.id;
