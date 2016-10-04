@@ -57,41 +57,49 @@ var usersOnlineSockets={};
 
 io.on('connection',function(socket){
   //Check user exists or not
-  socket.on('login-check',function(userName,pwd){
-    userCheck.findOne({ 'name': userName,'password':pwd },'name', function (err, user) {
-      if (err||user==null) {
-        console.log("No user exists");
-        socket.emit('login-check',"Either userName or password is wrong.");
-      }else{
-        //Store socket-id in usersOnline object
-        usersOnline[socket.id]=user.name;
-        //Store socket in usersOnlineSockets object
-        usersOnlineSockets[socket.id]=socket;
-        socket.emit('welcome',user.name);
-        io.emit('users-online',usersOnline);
+  socket.on('join',function(userName){
+    console.log("Join Event in server");
+    //flag variable to check if user already exists or not
+    var flag=0;
+    for(var id in usersOnline ){
+      if(usersOnline[id]==userName){
+        flag=1;
+        break;
       }
+    }
+    if(flag==0){
+      //Store socket-id in usersOnline object
+     usersOnline[socket.id]=userName;
+      //Store socket in usersOnlineSockets object
+     usersOnlineSockets[socket.id]=socket;
+    }
+      io.emit('users-online',usersOnline);
 
-    });
   });
-  //Request the person for chat
+  //Request the person for chat, id is of the person with whom the sender has to chat
   socket.on('request-chat',function(id){
+    console.log("request-chat Event in server");
     usersOnlineSockets[id].emit("request-chat",usersOnline[socket.id],socket.id);
   });
 
   //Accept the chat request
   socket.on('request-chat-accepted',function(id){
-
     var newChat;
+    var history;
     //Find if any history exits between the two people
     userChatHistory.findOne({
       chatId:{
         $in:[usersOnline[socket.id] + '-' + usersOnline[id], usersOnline[id] + '-' + usersOnline[socket.id]]
       }},function(err,previousChatHistory){
         if(previousChatHistory){
-          console.log("chatId already exists");
+          history=previousChatHistory.chatHistory;
+          console.log(history);
+        //  usersOnlineSockets[id].emit("request-chat-accepted-sender",socket.id,usersOnline[socket.id],history);
+        //  socket.emit('request-chat-accepted-self',id,usersOnline[id],history);
         }else{
           //Create new chat document
-          newChat=new userChatHistory({
+            history=[];
+            newChat=new userChatHistory({
             chatId:usersOnline[socket.id] + '-' + usersOnline[id],
             user1:usersOnline[socket.id],
             user2:usersOnline[id]
@@ -100,10 +108,14 @@ io.on('connection',function(socket){
           newChat.save(function(error,data){
             console.log("Chat document created");
           });
+
         }
+        usersOnlineSockets[id].emit("request-chat-accepted",socket.id,usersOnline[socket.id],history);
+        socket.emit('request-chat-accepted-self',id,usersOnline[id],history);
       }
     )
-    usersOnlineSockets[id].emit("request-chat-accepted",socket.id);
+
+
   });
 
   //Rejected chat request
@@ -133,16 +145,18 @@ io.on('connection',function(socket){
     //Emit that message to the receiver
     usersOnlineSockets[senderId].emit('chat-message-receiver',usersOnline[socket.id], msg,socket.id);
     //Emit the message to self
-    socket.emit('chat-message-self',usersOnline[socket.id],msg,senderId);
+  //  socket.emit('chat-message-self',usersOnline[socket.id],msg,senderId);
   });
 
   //On disconnect event
   socket.on('disconnect', function(){
+    io.emit('disconnect',socket.id,usersOnline[socket.id]);
     //delete Id
     delete usersOnline[socket.id];
     delete usersOnlineSockets[socket.id];
     // Show all people online
     io.emit('users-online',usersOnline);
+
   });
 
   //Upload file in server
@@ -169,8 +183,9 @@ app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-
+//app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../../client/chatapplication')));
+app.use(express.static(path.join(__dirname, '../../client')));
 
 app.use('/', routes);
 app.use('/users', users);

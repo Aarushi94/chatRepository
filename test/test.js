@@ -11,7 +11,7 @@ describe('Registeration Tests',function(){
       done();
     });
   });
-  it('should not register if userName exists',function(done){
+  it('should not register if userName exists and redirect to register page',function(done){
     api.post('/register')
     .send({
           userName:'Gaurav',
@@ -25,7 +25,7 @@ describe('Registeration Tests',function(){
         done();
       });
   });
-  it('should register new user if userName does not exists',function(done){
+  it('should register new user if userName does not exists and redirect to login page',function(done){
     api.post('/register')
     .send({
           userName:'Sanchit',
